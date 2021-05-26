@@ -97,8 +97,10 @@ class comp(Block):
 		self.constrain()
 
 	def constrain(self):
-		if self.rect.top <= 0: self.rect.top = 0
-		if self.rect.bottom >= screen_height: self.rect.bottom = screen_height
+		if self.rect.top <= 0:
+			self.rect.top = 0
+		if self.rect.bottom >= screen_height:
+			self.rect.bottom = screen_height
 
 class GameManager:
 	def __init__(self,ball_group,paddle_group):
@@ -107,7 +109,23 @@ class GameManager:
 		self.ball_group = ball_group
 		self.paddle_group = paddle_group
 
-	def menu(self):
+	def pause(self, text):
+		pause= True
+		pause_text=basic_font.render(str(text),True,(255,0,0))
+		pause_rect=pause_text.get_rect(center = (screen_width/2, screen_height/4))
+		while pause:
+				for event in pygame.event.get():
+					if event.type == pygame.KEYDOWN:
+						if event.key == pygame.ANYKEYPRESS:
+							pause = False
+
+		screen.fill((25,35,50))
+		screen.blit(pause_text, pause_rect)
+		pygame.display.flip()
+		clock.tick(120)
+
+
+	def p1Level(self):
 		intro = True
 		basic_font = pygame.font.Font('freesansbold.ttf', 75)
 		easy=basic_font.render(str("easy"),True,(255,0,0))
@@ -125,14 +143,17 @@ class GameManager:
 					click = True
 					while click:
 						if pygame.Rect.collidepoint(easy_rect, pygame.mouse.get_pos()):
-							opponent.speed = 5
+							opponent.speed=5
 							click = False
+							return 60
 						if pygame.Rect.collidepoint(medium_rect, pygame.mouse.get_pos()):
-							opponent.speed = 10
+							opponent.speed=10
 							click = False
+							return 120
 						if pygame.Rect.collidepoint(hard_rect, pygame.mouse.get_pos()):
-							opponent.speed = 15
+							opponent.speed=15
 							click = False
+							return 200
 					intro = False
 			screen.fill((25,35,50))
 			screen.blit(easy, easy_rect)
@@ -180,8 +201,8 @@ pygame.init()
 clock = pygame.time.Clock()
 
 # Main Window
-screen_width = 1280
-screen_height = 960
+screen_width = 800
+screen_height = 600
 screen = pygame.display.set_mode((screen_width,screen_height))
 pygame.display.set_caption('Pong')
 
@@ -195,8 +216,7 @@ middle_strip = pygame.Rect(screen_width/2 - 2,0,4,screen_height)
 intro = True
 # Game objects
 player = Player('Paddle.png',screen_width - 20,screen_height/2,10)
-opp_speed = 0
-opponent = comp('Paddle.png',20,screen_width/2,opp_speed)
+opponent = comp('Paddle.png',20,screen_width/2,15)
 paddle_group = pygame.sprite.Group()
 paddle_group.add(player)
 paddle_group.add(opponent)
@@ -204,11 +224,8 @@ ball = Ball('Ball.png',screen_width/2,screen_height/2,4,4,paddle_group)
 ball_sprite = pygame.sprite.GroupSingle()
 ball_sprite.add(ball)
 game_manager = GameManager(ball_sprite,paddle_group)
-
+fps = game_manager.p1Level()
 while True:
-	if intro:
-		game_manager.menu()
-		intro = False
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
 			pygame.quit()
@@ -233,4 +250,4 @@ while True:
 
 	# Rendering
 	pygame.display.flip()
-	clock.tick(200)
+	clock.tick(fps)
