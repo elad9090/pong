@@ -1,5 +1,5 @@
 import pygame, sys, random
-
+fps = 0
 class Block(pygame.sprite.Sprite):
 	def __init__(self,path,x_pos,y_pos):
 		super().__init__()
@@ -109,23 +109,25 @@ class GameManager:
 		self.ball_group = ball_group
 		self.paddle_group = paddle_group
 
-	def pause(self, text):
+	def pause(self):
 		pause= True
-		pause_text=basic_font.render(str(text),True,(255,0,0))
-		pause_rect=pause_text.get_rect(center = (screen_width/2, screen_height/4))
+		basic_font = pygame.font.Font('freesansbold.ttf', 40)
+		pause_text=basic_font.render("press any key to continue",True,(200,150,255))
+		pause_rect=pause_text.get_rect(center = (screen_width/2, ((screen_height/2)-100)))
 		while pause:
 				for event in pygame.event.get():
 					if event.type == pygame.KEYDOWN:
-						if event.key == pygame.ANYKEYPRESS:
-							pause = False
-
-		screen.fill((25,35,50))
-		screen.blit(pause_text, pause_rect)
-		pygame.display.flip()
-		clock.tick(120)
+						pause = False
+					if event.type == pygame.QUIT:
+						pygame.quit()
+						sys.exit()
+				screen.blit(pause_text, pause_rect)
+				pygame.display.flip()
+				clock.tick(120)
 
 
 	def p1Level(self):
+		global fps
 		intro = True
 		basic_font = pygame.font.Font('freesansbold.ttf', 75)
 		easy=basic_font.render(str("easy"),True,(255,0,0))
@@ -145,15 +147,16 @@ class GameManager:
 						if pygame.Rect.collidepoint(easy_rect, pygame.mouse.get_pos()):
 							opponent.speed=5
 							click = False
-							return 60
+							fps = 60
 						if pygame.Rect.collidepoint(medium_rect, pygame.mouse.get_pos()):
 							opponent.speed=10
 							click = False
-							return 120
+							fps = 120
 						if pygame.Rect.collidepoint(hard_rect, pygame.mouse.get_pos()):
 							opponent.speed=15
+							player.speed = 10
 							click = False
-							return 200
+							fps = 200
 					intro = False
 			screen.fill((25,35,50))
 			screen.blit(easy, easy_rect)
@@ -180,8 +183,26 @@ class GameManager:
 		if self.ball_group.sprite.rect.left <= 0:
 			self.player_score += 1
 			self.ball_group.sprite.reset_ball()
-		if self.player_score == 12:
-			pass
+		if self.player_score == 2 and self.opponent_score == 0:
+			win= True
+			while win:
+				for event in pygame.event.get():
+					if event.type == pygame.QUIT:
+						pygame.quit()
+						sys.exit()
+					if event.type == pygame.KEYDOWN:
+						if event.key == pygame.K_SPACE:
+							fps = game_manager.p1Level()
+							win= False
+				win_text=basic_font.render("wow you are Amazing",True,(200,150,255))
+				win_rect=win_text.get_rect(center = (screen_width/2, ((screen_height/2)-100)))
+				next_text = basic_font.render("press spacebar for a new game", True, (200, 150, 255))
+				next_rect = win_text.get_rect(center=(screen_width / 2, ((screen_height / 2)+100)))
+				screen.blit(win_text, win_rect)
+				screen.blit(next_text, next_rect)
+				pygame.display.flip()
+				clock.tick(120)
+
 
 
 
@@ -224,7 +245,7 @@ ball = Ball('Ball.png',screen_width/2,screen_height/2,4,4,paddle_group)
 ball_sprite = pygame.sprite.GroupSingle()
 ball_sprite.add(ball)
 game_manager = GameManager(ball_sprite,paddle_group)
-fps = game_manager.p1Level()
+game_manager.p1Level()
 while True:
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
@@ -235,6 +256,8 @@ while True:
 				player.movement -= player.speed
 			if event.key == pygame.K_DOWN:
 				player.movement += player.speed
+			if event.key == pygame.K_p:
+				game_manager.pause()
 		if event.type == pygame.KEYUP:
 			if event.key == pygame.K_UP:
 				player.movement += player.speed
