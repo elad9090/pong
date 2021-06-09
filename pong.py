@@ -1,0 +1,340 @@
+import pygame, sys, random
+
+fps = 0
+
+
+class Block(pygame.sprite.Sprite):
+	def __init__(self, path, x_pos, y_pos):
+		super().__init__()
+		self.image = pygame.image.load(path)
+		self.rect = self.image.get_rect(center=(x_pos, y_pos))
+
+
+class Player(Block):
+	def __init__(self, path, x_pos, y_pos, speed):
+		super().__init__(path, x_pos, y_pos)
+		self.speed = speed
+		self.movement = 0
+
+	def screen_constrain(self):
+		if self.rect.top <= 0:
+			self.rect.top = 0
+		if self.rect.bottom >= screen_height:
+			self.rect.bottom = screen_height
+
+	def update(self, ball_group):
+		self.rect.y += self.movement
+		self.screen_constrain()
+
+
+class Ball(Block):
+	def __init__(self, path, x_pos, y_pos, speed_x, speed_y, paddles):
+		super().__init__(path, x_pos, y_pos)
+		self.speed_x = speed_x * random.choice((-1, 1))
+		self.speed_y = speed_y * random.choice((-1, 1))
+		self.paddles = paddles
+		self.active = False
+		self.score_time = 0
+
+	def update(self):
+		if self.active:
+			self.rect.x += self.speed_x
+			self.rect.y += self.speed_y
+			self.collisions()
+		else:
+			self.restart_counter()
+
+	def collisions(self):
+		if self.rect.top <= 0 or self.rect.bottom >= screen_height:
+			pygame.mixer.Sound.play(plob_sound)
+			self.speed_y *= -1
+
+		if pygame.sprite.spritecollide(self, self.paddles, False):
+			pygame.mixer.Sound.play(plob_sound)
+			collision_paddle = pygame.sprite.spritecollide(self, self.paddles, False)[0].rect
+			if abs(self.rect.right - collision_paddle.left) < 10 and self.speed_x > 0:
+				self.speed_x *= -1
+			if abs(self.rect.left - collision_paddle.right) < 10 and self.speed_x < 0:
+				self.speed_x *= -1
+			if abs(self.rect.top - collision_paddle.bottom) < 10 and self.speed_y < 0:
+				self.rect.top = collision_paddle.bottom
+				self.speed_y *= -1
+			if abs(self.rect.bottom - collision_paddle.top) < 10 and self.speed_y > 0:
+				self.rect.bottom = collision_paddle.top
+				self.speed_y *= -1
+
+	def reset_ball(self):
+		self.active = False
+		self.speed_x *= random.choice((-1, 1))
+		self.speed_y *= random.choice((-1, 1))
+		self.score_time = pygame.time.get_ticks()
+		self.rect.center = (screen_width / 2, screen_height / 2)
+		pygame.mixer.Sound.play(score_sound)
+
+	def restart_counter(self):
+		current_time = pygame.time.get_ticks()
+		countdown_number = 3
+
+		if current_time - self.score_time <= 700:
+			countdown_number = "ready"
+		if 700 < current_time - self.score_time <= 1400:
+			countdown_number = "set"
+		if 1400 < current_time - self.score_time <= 2100:
+			countdown_number = "go!!"
+		if current_time - self.score_time >= 2100:
+			self.active = True
+
+		time_counter = basic_font.render(str(countdown_number), True, accent_color)
+		time_counter_rect = time_counter.get_rect(center=(screen_width / 2, screen_height / 2 + 50))
+		pygame.draw.rect(screen, bg_color, time_counter_rect)
+		screen.blit(time_counter, time_counter_rect)
+
+
+class comp(Block):
+	def __init__(self, path, x_pos, y_pos, speed):
+		super().__init__(path, x_pos, y_pos)
+		self.speed = speed
+
+	def update(self, ball_group):
+		if self.rect.top < ball_group.sprite.rect.y:
+			self.rect.y += self.speed
+		if self.rect.bottom > ball_group.sprite.rect.y:
+			self.rect.y -= self.speed
+		self.constrain()
+
+	def constrain(self):
+		if self.rect.top <= 0:
+			self.rect.top = 0
+		if self.rect.bottom >= screen_height:
+			self.rect.bottom = screen_height
+
+class player2(Block):
+	def __init__(self, path, x_pos, y_pos, speed):
+		super().__init__(path, x_pos, y_pos)
+		self.speed = speed
+		self.movement = 0
+
+	def screen_constrain(self):
+		if self.rect.top <= 0:
+			self.rect.top = 0
+		if self.rect.bottom >= screen_height:
+			self.rect.bottom = screen_height
+
+	def getY(self):
+		pass
+
+	def update(self, ball_group):
+		self.rect.y += self.movement
+		self.screen_constrain()
+
+
+class GameManager:
+	def __init__(self, ball_group, paddle_group):
+		self.player_score = 0
+		self.opponent_score = 0
+		self.ball_group = ball_group
+		self.paddle_group = paddle_group
+
+	def pause(self):
+		pause = True
+		basic_font = pygame.font.Font('freesansbold.ttf', 40)
+		pause_text = basic_font.render("press any key to continue", True, (200, 150, 255))
+		pause_rect = pause_text.get_rect(center=(screen_width / 2, ((screen_height / 2) - 100)))
+		screen.blit(pause_text, pause_rect)
+		pygame.display.flip()
+		while pause:
+			for event in pygame.event.get():
+				if event.type == pygame.KEYDOWN:
+					if event.key != pygame.K_UP and event.key != pygame.K_DOWN:
+						pause = False
+				if event.type == pygame.QUIT:
+					pygame.quit()
+					sys.exit()
+
+	def mode(self):
+		basic_font = pygame.font.Font('freesansbold.ttf', 60)
+		pong=pygame.image.load("ppong.png").convert()
+		pong_rect=pong.get_rect(center=(screen_width / 2, (screen_height / 4)*1))
+		single = basic_font.render(str("Single player"), True, (255, 0, 0))
+		single_rect = single.get_rect(center=(screen_width / 2, (screen_height / 4)*2))
+		multi = basic_font.render(str("Multiplayer"), True, (255, 0, 0))
+		multi_rect = multi.get_rect(center=(screen_width / 2, (screen_height / 4)*3))
+		choose = True
+		while choose:
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					pygame.quit()
+					sys.exit()
+				if event.type == pygame.MOUSEBUTTONDOWN:
+					click = True
+					while click:
+						if pygame.Rect.collidepoint(single_rect, pygame.mouse.get_pos()):
+							click = False
+							return "single"
+						if pygame.Rect.collidepoint(multi_rect, pygame.mouse.get_pos()):
+							click = False
+							return "multi"
+			screen.fill((25, 35, 50))
+			screen.blit(pong, pong_rect)
+			screen.blit(single, single_rect)
+			screen.blit(multi, multi_rect)
+			pygame.display.flip()
+			clock.tick(120)
+
+	def p1Level(self):
+		global fps
+		intro = True
+		basic_font = pygame.font.Font('freesansbold.ttf', 75)
+		easy = basic_font.render(str("easy"), True, (255, 0, 0))
+		easy_rect = easy.get_rect(center=(screen_width / 2, screen_height / 4))
+		medium = basic_font.render(str("medium"), True, (255, 0, 0))
+		medium_rect = medium.get_rect(center=(screen_width / 2, 2 * (screen_height / 4)))
+		hard = basic_font.render(str("Hard"), True, (255, 0, 0))
+		hard_rect = hard.get_rect(center=(screen_width / 2, 3 * (screen_height / 4)))
+		while intro:
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					pygame.quit()
+					sys.exit()
+				if event.type == pygame.MOUSEBUTTONDOWN:
+					click = True
+					while click:
+						if pygame.Rect.collidepoint(easy_rect, pygame.mouse.get_pos()):
+							opponent.speed = 5
+							click = False
+							fps = 60
+						if pygame.Rect.collidepoint(medium_rect, pygame.mouse.get_pos()):
+							opponent.speed = 10
+							click = False
+							fps = 120
+						if pygame.Rect.collidepoint(hard_rect, pygame.mouse.get_pos()):
+							opponent.speed = 15
+							player.speed = 10
+							click = False
+							fps = 200
+					intro = False
+			screen.fill((25, 35, 50))
+			screen.blit(easy, easy_rect)
+			screen.blit(medium, medium_rect)
+			screen.blit(hard, hard_rect)
+			pygame.display.flip()
+			clock.tick(120)
+
+	def run_game(self):
+		# Drawing the game objects
+		self.paddle_group.draw(screen)
+		self.ball_group.draw(screen)
+
+		# Updating the game objects
+		self.paddle_group.update(self.ball_group)
+		self.ball_group.update()
+		self.reset_ball()
+		self.draw_score()
+
+	def reset_ball(self):
+		if self.ball_group.sprite.rect.right >= screen_width:
+			self.opponent_score += 1
+			self.ball_group.sprite.reset_ball()
+		if self.ball_group.sprite.rect.left <= 0:
+			self.player_score += 1
+			self.ball_group.sprite.reset_ball()
+		if self.player_score == 7 or self.opponent_score == 7:
+			win = True
+			if self.player_score == 7:
+				text= "wow you are Amazing"
+			else:
+				text = "you lose"
+			win_text = basic_font.render(str(text), True, (200, 150, 255))
+			win_rect = win_text.get_rect(center=(screen_width / 2, ((screen_height / 2) - 100)))
+			while win:
+				for event in pygame.event.get():
+					if event.type == pygame.QUIT:
+						pygame.quit()
+						sys.exit()
+					if event.type == pygame.KEYDOWN:
+						if event.key == pygame.K_SPACE:
+							win = False
+							self.player_score = 0
+							self.opponent_score = 0
+							game_manager.p1Level()
+				next_text = basic_font.render("press spacebar for a new game", True, (200, 150, 255))
+				next_rect = win_text.get_rect(center=(((screen_width / 2)-120), ((screen_height / 2) + 100)))
+				screen.blit(win_text, win_rect)
+				screen.blit(next_text, next_rect)
+				pygame.display.flip()
+
+	def draw_score(self):
+		player_score = basic_font.render(str(self.player_score), True, accent_color)
+		opponent_score = basic_font.render(str(self.opponent_score), True, accent_color)
+
+		player_score_rect = player_score.get_rect(midleft=(screen_width / 2 + 40, screen_height / 2))
+		opponent_score_rect = opponent_score.get_rect(midright=(screen_width / 2 - 40, screen_height / 2))
+
+		screen.blit(player_score, player_score_rect)
+		screen.blit(opponent_score, opponent_score_rect)
+
+
+# General setup
+pygame.mixer.pre_init(44100, -16, 2, 512)
+pygame.init()
+clock = pygame.time.Clock()
+
+# Main Window
+screen_width = 1200
+screen_height = 800
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption('Pong')
+
+# Global Variables
+bg_color = pygame.Color('#2F373F')
+accent_color = (10, 3, 30)
+basic_font = pygame.font.Font('freesansbold.ttf', 32)
+plob_sound = pygame.mixer.Sound("pong.ogg")
+score_sound = pygame.mixer.Sound("score.ogg")
+middle_strip = pygame.Rect(screen_width / 2 - 2, 0, 4, screen_height)
+intro = True
+# Game objects
+player = Player('Paddle.png', screen_width - 20, screen_height / 2, 10)
+opponent = comp('Paddle.png', 20, screen_width / 2, 15)
+paddle_group = pygame.sprite.Group()
+paddle_group.add(player)
+paddle_group.add(opponent)
+ball = Ball('Ball.png', screen_width / 2, screen_height / 2, 4, 4, paddle_group)
+ball_sprite = pygame.sprite.GroupSingle()
+ball_sprite.add(ball)
+game_manager = GameManager(ball_sprite, paddle_group)
+mode= game_manager.mode()
+if mode == "single":
+	game_manager.p1Level()
+	while True:
+
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				pygame.quit()
+				sys.exit()
+			if event.type == pygame.KEYDOWN:
+				if event.key == pygame.K_UP:
+					player.movement -= player.speed
+				if event.key == pygame.K_DOWN:
+					player.movement += player.speed
+				if event.key == pygame.K_p:
+					game_manager.pause()
+					print(player.rect.y)
+			if event.type == pygame.KEYUP:
+				if event.key == pygame.K_UP:
+					player.movement += player.speed
+				if event.key == pygame.K_DOWN:
+					player.movement -= player.speed
+
+		# Background Stuff
+		screen.fill(bg_color)
+		pygame.draw.rect(screen, accent_color, middle_strip)
+
+		# Run the game
+		game_manager.run_game()
+
+		# Rendering
+		pygame.display.flip()
+		clock.tick(fps)
+if mode == "multi":
+	pass
