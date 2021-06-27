@@ -1,0 +1,245 @@
+import socket
+import threading
+import random
+from time import sleep
+
+
+screen_width = 1200
+screen_height = 800
+
+
+class KillThreadExcpetion(BaseException):
+    pass
+
+
+def pickle_data(obj):
+    if obj is None:
+        return 'null'
+    return obj.pickle()
+
+
+class Ball:
+    def __init__(self):
+        self.x = 600
+        self.y = 400
+        self.height = 30
+        self.width = 30
+        self.speed_x = 4 * random.choice((-1, 1))
+        self.speed_y = 4 * random.choice((-1, 1))
+
+    @property
+    def rect_top(self):
+        return (self.x - self.width // 2, self.y - self.height // 2)
+
+    @property
+    def rect_bottom(self):
+        def tuple_add(a, b):
+            lst = []
+            for i in range(len(a)):
+                lst[i] = a[i] + b[i]
+            return tuple(lst)
+
+        return tuple_add(self.rect_top, (self.width, self.height))
+
+    def reset(self):
+        self.x = 600
+        self.y = 400
+
+    def update(self):
+        self.x += self.speed_x
+        self.y += self.speed_y
+
+    def pickle(self):
+        return f'{self.x},{self.y}'
+
+
+
+class GameManager:
+    def __init__(self):
+        self.is_running = False
+        self.p1 = None
+        self.p2 = None
+        self.ball = Ball()
+
+    def game_loop(self):
+        def check_coll(a, b):
+            return a.rect_top[0] < b.rect_top[0] + b.width and \
+                a.rect_top[0] + a.width > b.rect_top[0] and \
+                    a.rect_top[1] < b.rect_top[1] + b.height and \
+                        a.rect_top[1] + a.height > b.rect_top[1]
+
+        reset_flag = False
+        sound_to_play = 0
+
+        def check_for_collisions():
+            global sound_to_play
+
+            if self.ball.rect_top[1] <= 0 or self.ball.rect_bottom[1] >= screen_height:
+                self.ball.speed_y *= -1
+
+            if check_coll(self.ball, self.p1) or check_coll(self.ball, self.p2):
+                self.ball.speed_x *= -1
+                return 'Hit'
+
+            if self.ball.rect_top[0] < 0:
+                return self.p1
+            elif self.ball.rect_bottom[0] > screen_width:
+                return self.p2
+
+        while True:
+            pickled_data = ';'.join((pickle_data(self.p1), pickle_data(self.p2), pickle_data(self.ball), str(sound_to_play))).encode()
+            pickled_data = b'<' * (64 - len(pickled_data)) + pickled_data
+            if self.p1 is not None:
+                self.p1.sck.send(pickled_data)
+            if self.p2 is not None:
+                self.p2.sck.send(pickled_data)
+            sound_to_play = 0
+
+            if self.are_both_ready():
+                if reset_flag:
+                    self.p1.score = 0
+                    self.p2.score = 0
+                    reset_flag = False
+
+                coll = check_for_collisions()
+
+                self.p1.print(self.p1.pickle(), self.p1.rect_top, self.p1.rect_bottom)
+                self.p2.print(self.p2.pickle(), self.p2.rect_top, self.p2.rect_bottom)
+
+                if coll:
+                    if type(coll) == Player:
+                        coll.score += 1
+                        sound_to_play = 2
+                        self.ball.reset()
+                    else:
+                        sound_to_play = 1
+
+                if self.p1.score == 7 or self.p2.score == 7:
+                    self.p1.ready = False
+                    self.p2.ready = False
+                    reset_flag = True
+                
+                self.ball.update()
+
+            sleep(0.01)
+
+    def are_both_ready(self):
+        return self.p1 is not None and self.p2 is not None and self.p1.ready and self.p2.ready
+
+
+manager = GameManager()
+
+
+class Player:
+    def __init__(self, sck, address):
+        self.ready = False
+        self.x = 0
+        self.y = 400
+        self.height = 150
+        self.width = 10
+        self.sck = sck
+        self.address = address
+        self.score = 0
+
+        self.print('\t\t NEW PLAYER CONNECTED')
+
+    @property
+    def rect_top(self):
+        return (self.x - self.width // 2, self.y - self.height // 2)
+
+    @property
+    def rect_bottom(self):
+        def tuple_add(a, b):
+            lst = []
+            for i in range(len(a)):
+                lst[i] = a[i] + b[i]
+            return tuple(lst)
+
+        return tuple_add(self.rect_top, (self.width, self.height))
+
+    def recv(self, n):
+        do_reset = False
+        try:
+            data = self.sck.recv(n)
+            if len(data) == 0:
+                if manager.p1 == self:
+                    manager.p1 = None
+                    do_reset = True
+                elif manager.p2 == self:
+                    manager.p2 = None
+                    do_reset = True
+                self.print('I WAS REMOVED!!!!!!')
+                raise KillThreadExcpetion()
+            return data
+        except:
+            if manager.p1 == self:
+                manager.p1 = None
+                do_reset = True
+            elif manager.p2 == self:
+                manager.p2 = None
+                do_reset = True
+            self.print('I WAS REMOVED!!!!!!')
+            raise KillThreadExcpetion()
+        finally:
+            if do_reset:
+                manager.p1.score = 0
+                manager.p2.score = 0
+                manager.ball.reset()
+
+    def print(self, *args, **kwargs):
+        print('[{:15s} {:05d}] ==> '.format(self.address[0], self.address[1]), *args, **kwargs)
+
+    def loop(self):
+        if None not in (manager.p1, manager.p2):
+            self.sck.send(b'Game is full')
+            return
+        
+        data = self.recv(9)
+        self.print(data)
+
+        if data == b'connectst':
+            self.sck.send(b'alive')
+            self.sck.close()
+            return
+        elif data != b'connected':
+            self.sck.send(b'Invalid use of server!')
+            self.sck.close()
+            return
+
+        if manager.p1 is None:
+            self.x = screen_width - 20
+            manager.p1 = self
+            self.sck.send(b'p1')
+        elif manager.p2 is None:
+            self.x = 20
+            manager.p2 = self
+            self.sck.send(b'p2')
+        
+        while True:
+            data = self.recv(9).decode()
+            while data[0] == '<':
+                data = data[1:]
+            data = data.split(',')
+            self.print(data)
+            self.y = int(data[0])
+            self.ready = data[1]
+
+    def pickle(self):
+        return f'{self.y},{self.ready},{self.score}'
+
+
+def main():
+    server = socket.socket()
+    server.bind(('0.0.0.0', 80))
+    server.listen(0)
+
+    threading.Thread(target=manager.game_loop).start()
+
+    while not manager.are_both_ready():
+        sck, address = server.accept()
+        p = Player(sck, address)
+        threading.Thread(target=p.loop).start()
+
+
+if __name__ == '__main__':
+    main()
